@@ -198,8 +198,8 @@ def forward_prop(x_list,c_vec,params,layers):
         with tf.variable_scope("lstm1", reuse=reuse):
             h1, lstm1_state = lstm1(tf.concat([x_list[t], window],axis=1), lstm1_state) #[x_list[t] window].shape = [batch_size, 3 + character_number]
         h1_list.append(h1) #h1.shape = [batch_size, cell_numbers]
-        k_gaussian = tf.nn.xw_plus_b(h1, weights_h1_p, biais_p) #shape = [batch_size,3*K]
-        alpha_hat, beta_hat, kappa_hat = tf.split(k_gaussian,3,axis=1) #shape = [batch_size,K]
+        output_wl = tf.nn.xw_plus_b(h1, weights_h1_p, biais_p) #shape = [batch_size,3*K]
+        alpha_hat, beta_hat, kappa_hat = tf.split(output_wl,3,axis=1) #shape = [batch_size,K]
         alpha = tf.expand_dims(tf.exp(alpha_hat), 2) #shape = [batch_size,K,1]
         beta = tf.expand_dims(tf.exp(beta_hat), 2) #shape = [batch_size,K,1]
         kappa = previous_kappa + tf.expand_dims(tf.exp(kappa_hat), 2) #shape = [batch_size,K,1]
