@@ -1,10 +1,11 @@
 import numpy as np
 import tensorflow as tf
 
+##################  Part 1: Preparing data ##################
 
 T = 400
 
-def cut_same(strokes):  
+def cut_same(strokes):    ### Fuse two consecutive same stroke
     L = []
     for i in range(strokes.shape[0]):
         stroke = strokes[i]
@@ -35,8 +36,6 @@ def preprocess_strokes(strokes):
     for i in range(len(strokes)):
         m[i,:strokes[i].shape[0],:] = strokes[i]
     return m
-
-
 
 
 def preprocess_text(texts):
@@ -71,12 +70,12 @@ def preprocess_text(texts):
             else:
                 C_vec[i,j,dictionnary[texts[i][j]]] = 1
             
-    return C_vec
+    return C_vec, dictionnary, cut,texts
 
 
 def load_data():
-    strokes = np.load('data/strokes.npy',encoding = 'latin1')
-    with open('data/sentences.txt') as f:
+    strokes = np.load('..data/strokes.npy',encoding = 'latin1')
+    with open('..data/sentences.txt') as f:
         texts = f.readlines()
     strokes = cut_same(strokes)
     strokes,texts = filter_data(strokes,texts)
@@ -84,14 +83,15 @@ def load_data():
     Y = np.zeros(strokes.shape,dtype ="float32")
     for i in range(Y.shape[0]):
         Y[i,:T-1,:] = strokes[i,1:T,:]
-    C_vec = preprocess_text(texts)
-    return strokes,Y,C_vec
+    C_vec,dic,cut,texts = preprocess_text(texts)
+    return strokes,Y,C_vec,dic,cut,texts
 
 
-X,Y,C = load_data()    
+X,Y,C,dic,cut,texts = load_data()      #X contains only 357 examples for the purpose of testing the code
 
 
-           
+ ########### Part 1bis: utils functions ################   
+
            
 def expand_duplicate(x, N, dim):
     return tf.concat([tf.expand_dims(x, dim) for _ in range(N)],axis =dim)
@@ -123,6 +123,8 @@ def random_batches(X, Y, C, batch_size):
     
     return batches
 
+
+###################### Part 2: Trainig model ###########################
 
 U = C.shape[1]
 character_number = C.shape[2]
@@ -183,7 +185,6 @@ def forward_prop(x_list,c_vec,params,layers):
     h2_list = []
     h3_list = []
 
-    #weights_h1_p = tf.reshape(params["weights_h1_p"],[cells_number, 3*K])
     weights_h1_p = params["weights_h1_p"]
     biais_p = params["biais_p"]
     
@@ -197,8 +198,8 @@ def forward_prop(x_list,c_vec,params,layers):
         with tf.variable_scope("lstm1", reuse=reuse):
             h1, lstm1_state = lstm1(tf.concat([x_list[t], window],axis=1), lstm1_state) #[x_list[t] window].shape = [batch_size, 3 + character_number]
         h1_list.append(h1) #h1.shape = [batch_size, cell_numbers]
-        output_wl = tf.nn.xw_plus_b(h1, weights_h1_p, biais_p) #shape = [batch_size,3*K]
-        alpha_hat, beta_hat, kappa_hat = tf.split(output_wl,3,axis=1) #shape = [batch_size,K]
+        k_gaussian = tf.nn.xw_plus_b(h1, weights_h1_p, biais_p) #shape = [batch_size,3*K]
+        alpha_hat, beta_hat, kappa_hat = tf.split(k_gaussian,3,axis=1) #shape = [batch_size,K]
         alpha = tf.expand_dims(tf.exp(alpha_hat), 2) #shape = [batch_size,K,1]
         beta = tf.expand_dims(tf.exp(beta_hat), 2) #shape = [batch_size,K,1]
         kappa = previous_kappa + tf.expand_dims(tf.exp(kappa_hat), 2) #shape = [batch_size,K,1]
@@ -219,7 +220,6 @@ def forward_prop(x_list,c_vec,params,layers):
     h2_list = tf.reshape(tf.concat(h2_list,axis=0),[batch_size,T,cells_number])
     h3_list = tf.reshape(tf.concat(h3_list,axis=0),[batch_size,T,cells_number])
     h_list = tf.concat([h1_list,h2_list,h3_list],axis=2) #shape = [batch_size,T,3*cells_number]
-#    weights_y = tf.reshape(params["weights_y"],[3*cells_number, 1 + 6*M])
     weights_y = params["weights_y"]
     biais_y = params["biais_y"]
     weights_y = expand_duplicate(weights_y,batch_size,0)#shape = [batch_size,3*cell_numbers,N_out]
@@ -256,7 +256,7 @@ def compute_loss(y_hat,y):
 from tensorflow.python.framework import ops
 
 
-def train_model(epochs = 10, X_train, Y_train, C_vec, batch_size):
+def train_model(epochs, X_train, Y_train, C_vec, batch_size):
     ops.reset_default_graph()
     
     c_vec = tf.placeholder(shape = [None, U, character_number], dtype=tf.float32)
@@ -300,70 +300,90 @@ def train_model(epochs = 10, X_train, Y_train, C_vec, batch_size):
     return parameters
         
                 
-#
-#model(20,X,Y,C,batch_size)
-#
+
+params = train_model(10,X,Y,C,batch_size)
+
 
 import pickle
-#f = open("model_weights.pkl","wb")
-#pickle.dump(after,f)
-#f.close()
+f = open("model_weights.pkl","wb")
+pickle.dump(params,f)
+f.close()
+
+
+################ Part 3: Generate strokes ######################
+
+
 f = open("model_weights.pkl", 'rb')
 params = pickle.load(f)
 f.close()
 
+sentence = "Example sentence."
 
 
+def preprocess_sentence(sentence):
+    out = np.zeros((len(sentence),len(dic.values)+1))    ### dic maps letter to number, defined in loading data part
+    
+    for i in range(len(sentence)):
+        if sentence[i] in cut:   #### cut contain digit and punctuation ommitted in the count of unique characters
+            out[i,len(dic.values)] = 1
+        else:
+            out[i,dic[sentence[i]]] = 1
+    return out
 
-
-
-sentence = C[0]
+sentence = preprocess_sentence(sentence)
 
 
 def generate_strokes(sentence, params):
     ops.reset_default_graph()
     
-    strokes_len = sentence.shape[0]*25
-    x = np.zeros((1,3))
-    strokes = np.zeros([strokes_len,3])
+    length = sentence.shape[0]
+    x = tf.placeholder(shape = [1,3], dtype = tf.float32)
+    current_stroke = np.zeros((1,3), dtype = "float32")
+    strokes = []
     
     lstm1 = tf.nn.rnn_cell.LSTMCell(cells_number)
     lstm2 = tf.nn.rnn_cell.LSTMCell(cells_number)
     lstm3 = tf.nn.rnn_cell.LSTMCell(cells_number)
-    lstm1.set_weights(params["weights_lstm1"])
-    lstm2.set_weights(params["weights_lstm2"])
-    lstm3.set_weights(params["weights_lstm3"])
     init_lstm1 = lstm1.zero_state(1, dtype=tf.float32) 
     init_lstm2 = lstm2.zero_state(1, dtype=tf.float32)
     init_lstm3 = lstm2.zero_state(1, dtype=tf.float32)
     lstm1_state = init_lstm1
     lstm2_state = init_lstm2
     lstm3_state = init_lstm3
-
-    weights_h1_p = tf.convert_to_tensor(params["weights_h1_p"])
-    biais_p = tf.convert_to_tensor(params["biais_p"])
-    weights_y = tf.convert_to_tensor(params["weights_y"]) #shape = [3*cell_numbers,N_out]
-    biais_y = tf.convert_to_tensor(params["biais_y"])
-    previous_kappa = tf.zeros([1, K, 1])  
-    window = tf.zeros([1, character_number])
     
-    u = expand_duplicate(np.array([i for i in range(1,U+1)], dtype=np.float32),K,0) #u.shape = (1,K,U) each line being [i for i in range(1,U+1)] 
+    weights_h1_p = tf.convert_to_tensor(params["weights_h1_p"]) #shape = [cells_number, 3*K]
+    biais_p = tf.convert_to_tensor(params["biais_p"]) #shape = [3*K]
+    weights_y = tf.convert_to_tensor(params["weights_y"]) #shape = [3*cell_numbers,N_out]
+    biais_y = tf.convert_to_tensor(params["biais_y"]) #shape = [N_out]
+    previous_kappa = tf.zeros([K,1])  
+    window = tf.zeros([1,character_number])
+    
+    def init_lstm_weights():
+        h1,_ = lstm1(tf.concat([x, window],axis=1), lstm1_state)
+        h2,_ = lstm2(tf.concat([x, h1, window],axis=1), lstm2_state)
+        h3,_ = lstm3(tf.concat([x, h2, window],axis=1), lstm2_state)
+        lstm1.set_weights(params["weights_lstm1"])
+        lstm2.set_weights(params["weights_lstm2"])
+        lstm3.set_weights(params["weights_lstm3"])
+        
+    init_lstm_weights()
+    
+    u = expand_duplicate(np.array([i for i in range(1,length+2)], dtype=np.float32),K,0) #u.shape = [K,length+1] 
 
     reuse = False
-    strokes[0,:] = x
+    strokes.append([0,0,0])
     
-    for t in range(1,strokes_len):
+    while True:
         with tf.variable_scope("lstm1", reuse=reuse):
-            h1, lstm1_state = lstm1(tf.concat([x, window],axis=1), lstm1_state) #[x_list[t] window].shape = [1, 3 + character_number]
-        k_gaussian = tf.nn.xw_plus_b(h1, weights_h1_p, biais_p) #shape = [1,3*K]
-        alpha_hat, beta_hat, kappa_hat = tf.split(k_gaussian,3,axis=1) #shape = [1,K]
-        alpha = tf.expand_dims(tf.exp(alpha_hat), 2) #shape = [1,K,1]
-        beta = tf.expand_dims(tf.exp(beta_hat), 2) #shape = [1,K,1]
-        kappa = previous_kappa + tf.expand_dims(tf.exp(kappa_hat), 2) #shape = [1,K,1]
+            h1, lstm1_state = lstm1(tf.concat([x, window],axis=1), lstm1_state) #[x_list[t] window].shape = [3 + character_number]
+        output_wl = tf.nn.xw_plus_b(h1, weights_h1_p, biais_p) #shape = [1,3*K]      h1.shape = [1,cells_number]
+        alpha_hat, beta_hat, kappa_hat = tf.split(tf.reshape(output_wl,[3*K,1]),3,axis=0) #shape = [K,1]
+        alpha = tf.exp(alpha_hat) #shape = [K,1]
+        beta = tf.exp(beta_hat) #shape = [K,1]
+        kappa = previous_kappa + tf.exp(kappa_hat) #shape = [K,1]
         previous_kappa = kappa
-        phi = tf.reduce_sum(alpha*tf.exp(-beta*tf.square(kappa-u)),axis=1,keepdims=True) #(kappa-u).shape = [1,K,U], phi.shape = [1,1,U] 
-        window = tf.squeeze(tf.matmul(phi, sentence),axis = 1) #shape = [1, character_number] 
-
+        phi = tf.reduce_sum(alpha*tf.exp(-beta*tf.square(kappa-u)),axis=0,keepdims=True) #phi.shape = [1,length+1] 
+        window = tf.matmul(phi[:,:-1], sentence) #shape = [1, character_number] 
         with tf.variable_scope("lstm2", reuse=reuse):
             h2, lstm2_state = lstm2(tf.concat([x, h1, window],axis=1), lstm2_state) #[x_list[t] h1 window].shape = [1,3+cells_number+character_number]
         with tf.variable_scope("lstm3", reuse=reuse):
@@ -371,18 +391,122 @@ def generate_strokes(sentence, params):
         h = tf.concat([h1,h2,h3], axis = 1) #shape = [1,3*cells_number]
         y_hat = tf.nn.xw_plus_b(h,weights_y,biais_y) #shape = [1,N_out]
         
-        end_of_stroke = 1 / (1 + tf.exp(y_hat[:,0]))
-        pi_hat, mu1_hat, mu2_hat, sigma1_hat, sigma2_hat, rho_hat = tf.split(y_hat[:,1:],6,axis=1)
-        x[0],x[1] = mu1_hat,mu2_hat
-        if end_of_stroke > 0.5:
-            x[2] = 1
-        else:
-            x[2] = 0
-        strokes[t,:] = x
+        end_of_stroke = 1 / (1 + tf.exp(y_hat[0,0]))
+        pi_hat, mu1_hat, mu2_hat, sigma1_hat, sigma2_hat, rho_hat = tf.split(y_hat[0,1:],6,axis=0) #shape = [20,]
+        pi = tf.exp(pi_hat) / tf.reduce_sum(tf.exp(pi_hat)) #shape = [20,]
+        sigma1 = tf.exp(sigma1_hat)#shape = [M,]
+        sigma2 = tf.exp(sigma2_hat)#shape = [M,]
+        mu1 = mu1_hat#shape = [M,]
+        mu2 = mu2_hat#shape = [M,]
+        rho = tf.tanh(rho_hat) #shape = [M,]
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            PHI = sess.run(phi, feed_dict = {x: current_stroke})
+            if sum(PHI[0,-1] > PHI[0,:-1]) == length:
+                print("sentence scan end")
+                break
+            Pi,Mu1,Mu2,sig1,sig2,Rho = sess.run([pi,mu1,mu2,sigma1,sigma2,rho], feed_dict = {x: current_stroke})
+            accuracy = 0
+            for m in range(M):
+                accuracy += Pi[m]
+                if accuracy > 0.5:
+                    x0,x1= np.random.multivariate_normal([Mu1[m], Mu2[m]],
+                           [[np.square(sig1[m]), Rho[m]*sig1[m] * sig2[m]],[Rho[m]*sig1[m]*sig2[m], np.square(sig2[m])]])
+                    break
+            proba_end = sess.run(end_of_stroke, feed_dict = {x: current_stroke})
+            if proba_end > 0.5:
+                x2 = 1
+            else:
+                x2 = 0
+        current_stroke[0,0] = x0
+        current_stroke[0,1] = x1
+        current_stroke[0,2] = x2
+        strokes.append([x0,x1,x2])
+        reuse = True
+        if len(strokes) >= 2000:
+            print("limit")
+            break
+        
+    return np.array(strokes)
+    
+
+
+
+def random_generate_strokes(params):
+    
+    ops.reset_default_graph()
+    
+    x = tf.placeholder(shape = [1,3], dtype = tf.float32)
+    current_stroke = np.zeros((1,3), dtype = "float32")
+    strokes = []
+    
+    lstm1 = tf.nn.rnn_cell.LSTMCell(cells_number)
+    lstm2 = tf.nn.rnn_cell.LSTMCell(cells_number)
+    lstm3 = tf.nn.rnn_cell.LSTMCell(cells_number)
+    init_lstm1 = lstm1.zero_state(1, dtype=tf.float32) 
+    init_lstm2 = lstm2.zero_state(1, dtype=tf.float32)
+    init_lstm3 = lstm2.zero_state(1, dtype=tf.float32)
+    lstm1_state = init_lstm1
+    lstm2_state = init_lstm2
+    lstm3_state = init_lstm3
+    
+    weights_y = tf.convert_to_tensor(params["weights_y"]) #shape = [3*cell_numbers,N_out]
+    biais_y = tf.convert_to_tensor(params["biais_y"]) #shape = [N_out]
+    window = tf.zeros([1,character_number])
+    
+    def init_lstm_weights():
+        h1,_ = lstm1(tf.concat([x,window],axis=1), lstm1_state)
+        h2,_ = lstm2(tf.concat([x, h1],axis=1), lstm2_state)
+        h3,_ = lstm3(tf.concat([x, h2],axis=1), lstm2_state)
+        lstm1.set_weights(params["weights_lstm1"])
+        lstm2.set_weights(params["weights_lstm2"])
+        lstm3.set_weights(params["weights_lstm3"])
+        
+    init_lstm_weights()
+    
+    reuse = False
+    strokes.append([0,0,0])
+    
+    for i in range(T-1):
+        with tf.variable_scope("lstm1", reuse=reuse):
+            h1, lstm1_state = lstm1(tf.concat([x,window],axis=1), lstm1_state) #[x_list[t] window].shape = [3 + character_number]
+        with tf.variable_scope("lstm2", reuse=reuse):
+            h2, lstm2_state = lstm2(tf.concat([x, h1,window],axis=1), lstm2_state) #[x_list[t] h1 window].shape = [1,3+cells_number+character_number]
+        with tf.variable_scope("lstm3", reuse=reuse):
+            h3, lstm3_state = lstm3(tf.concat([x, h2,window],axis=1), lstm2_state) #[x_list[t], h2, window].shape = [1,3+cells_number+character_number]
+        h = tf.concat([h1,h2,h3], axis = 1) #shape = [1,3*cells_number]
+        y_hat = tf.nn.xw_plus_b(h,weights_y,biais_y) #shape = [1,N_out]
+        
+        end_of_stroke = 1 / (1 + tf.exp(y_hat[0,0]))
+        pi_hat, mu1_hat, mu2_hat, sigma1_hat, sigma2_hat, rho_hat = tf.split(y_hat[0,1:],6,axis=0) #shape = [20,]
+        pi = tf.exp(pi_hat) / tf.reduce_sum(tf.exp(pi_hat)) #shape = [20,]
+        sigma1 = tf.exp(sigma1_hat)#shape = [M,]
+        sigma2 = tf.exp(sigma2_hat)#shape = [M,]
+        mu1 = mu1_hat#shape = [M,]
+        mu2 = mu2_hat#shape = [M,]
+        rho = tf.tanh(rho_hat) #shape = [M,]
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            Pi,Mu1,Mu2,sig1,sig2,Rho = sess.run([pi,mu1,mu2,sigma1,sigma2,rho], feed_dict = {x: current_stroke})
+            accuracy = 0
+            for m in range(M):
+                accuracy += Pi[m]
+                if accuracy > 0.5:
+                    x0,x1= np.random.multivariate_normal([Mu1[m], Mu2[m]],
+                           [[np.square(sig1[m]), Rho[m]*sig1[m] * sig2[m]],[Rho[m]*sig1[m]*sig2[m], np.square(sig2[m])]])
+                    break
+            proba_end = sess.run(end_of_stroke, feed_dict = {x: current_stroke})
+            if proba_end > 0.5:
+                x2 = 1
+            else:
+                x2 = 0
+        current_stroke[0,0] = x0
+        current_stroke[0,1] = x1
+        current_stroke[0,2] = x2
+        strokes.append([x0,x1,x2])
         reuse = True
         
-    return strokes
-
+    return np.array(strokes)
     
 
     
