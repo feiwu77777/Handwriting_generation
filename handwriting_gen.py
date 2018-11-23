@@ -20,7 +20,7 @@ def cut_same(strokes):    ### Fuse two consecutive same stroke
         L.append(array)
     return L
 
-
+#
 def filter_data(strokes,texts):
     indices = []
     for i in range(len(strokes)):
