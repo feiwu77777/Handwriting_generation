@@ -196,11 +196,11 @@ f = open("model_weights.pkl", 'rb')
 params = pickle.load(f)
 f.close()
 
-#LSTM_cell1 = LSTM(400, return_state = True, name = "lstm1")
-#LSTM_cell2 = LSTM(400, return_state = True, name = "lstm2")
-#LSTM_cell3 = LSTM(400, return_state = True, name = "lstm3")
-#window_dense = Dense(3*K, name = "dense1")
-#output_dense = Dense(121, name = "dense2")
+LSTM_cell1 = LSTM(400, return_state = True, name = "lstm1")
+LSTM_cell2 = LSTM(400, return_state = True, name = "lstm2")
+LSTM_cell3 = LSTM(400, return_state = True, name = "lstm3")
+window_dense = Dense(3*K, name = "dense1")
+output_dense = Dense(121, name = "dense2")
 
 
 def one_step_prop():
