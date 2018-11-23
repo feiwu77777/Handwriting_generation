@@ -1,15 +1,55 @@
-from keras.layers import Input, Dense, Concatenate,LSTM,Lambda,Reshape,Add,Subtract,Multiply,Dot
+from keras.layers import Input, Dense, Concatenate,LSTM,Lambda,Reshape,Add,Multiply,Dot
 from keras.models import Model
 import tensorflow as tf
 import numpy as np
 from keras.optimizers import Adam
 
-
+strokes = np.load('data/strokes.npy',encoding = 'latin1')
+with open('data/sentences.txt') as f:
+    texts = f.readlines()
+    
 T = 10
-character_number = 51
+
+X = np.zeros((100,10,3))
+for i in range(X.shape[0]):
+    X[i,:,:] = strokes[i][:10,:]
+    
+Y = np.zeros((10,100,3))
+for i in range(X.shape[0]):
+    Y[:T-1,i,:] = X[i,1:T,:]
+    
+    
+def preprocess_text(texts):
+    for i in range(len(texts)):
+        texts[i] = texts[i][:len(texts[i])-1]
+    unique = []   
+    for i in range(len(texts)):
+        unique.append(list(set(texts[i])))   
+    unique = np.concatenate(unique,axis = 0)
+    unique = list(set(unique))
+    cut = ["!",".","0","8","2","4","+","#",")",'"',";",":","3","/",",","(","9","5","1","2","6","7","-","'","?"]    
+    unique = [o for o in unique if o not in cut]            
+    texts = np.array(texts)
+    dictionnary = {character:index for index, character in enumerate(unique)}
+    maxs = len(texts[0])
+    for i in range(1,len(texts)):
+        if len(texts[i]) > maxs:
+            maxs = len(texts[i])
+    C_vec = np.zeros((texts.shape[0],maxs,len(unique)+1),dtype = "float32")
+    for i in range(len(texts)):
+        for j in range(len(texts[i])):
+            if texts[i][j] in cut:
+                C_vec[i,j,len(unique)] = 1
+            else:
+                C_vec[i,j,dictionnary[texts[i][j]]] = 1       
+    return C_vec, dictionnary, cut,texts
+C,d,cut,texts = preprocess_text(texts)
+C = C[:100,:,:]
+
+character_number = C.shape[2]
 K = 10
-U = 39
-batch_size = 16
+U = C.shape[1]
+batch_size = 10
 M = 20
 
 LSTM_cell1 = LSTM(400, return_state = True, name = "lstm1")
@@ -18,10 +58,7 @@ LSTM_cell3 = LSTM(400, return_state = True, name = "lstm3")
 window_dense = Dense(3*K, name = "dense1")
 output_dense = Dense(121, name = "dense2")
 
-def expand_duplicate(x, N, dim):
-    return tf.concat([tf.expand_dims(x, dim) for _ in range(N)],axis =dim)
 
-u = expand_duplicate(np.array([i for i in range(1,U+1)], dtype=np.float32),K,0)
 
 
 
@@ -49,6 +86,8 @@ def model_structure():
     c3 = c10
     outputs = []
     
+    u = np.concatenate([np.expand_dims(np.array([i for i in range(1,U+1)], dtype=np.float32),0) for _ in range(K)], axis = 0)
+
     
     for t in range(T):
         x = Lambda(lambda x: x[:,t,:], name = "lamb1-%i" % t)(X)
@@ -85,16 +124,20 @@ def model_structure():
     
     model = Model(inputs = [X,h10,c10,h20,c20,h30,c30,c_vec,init_window,init_kappa], outputs = outputs)
     
-    return model,outputs
+    return model
 
 
-model,outputs = model_structure()
+model= model_structure()
 
+
+
+def expand_duplicate(x, N, dim):
+    return tf.concat([tf.expand_dims(x, dim) for _ in range(N)],axis =dim)
 
 
 def compute_loss(y,y_hat):
 
-    y1, y2, y_end_of_stroke = tf.split(y,3,axis=1) #shape = [batch_size,1]
+    y_end_of_stroke, y1, y2 = tf.split(y,3,axis=1) #shape = [batch_size,1]
     y1 = tf.squeeze(y1,axis=1) 
     y2 = tf.squeeze(y2,axis=1) 
     y_end_of_stroke = tf.squeeze(y_end_of_stroke,axis=1) 
@@ -118,8 +161,85 @@ def compute_loss(y,y_hat):
 
     return loss
 
-opt = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, decay=0.01)
+opt = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.01, clipnorm = 5.0)
 
 model.compile(optimizer=opt, loss = compute_loss)
+
+
+h10 = np.zeros((100,400))
+c10 = np.zeros((100,400))
+h20 = np.zeros((100,400))
+c20 = np.zeros((100,400))
+h30 = np.zeros((100,400))
+c30 = np.zeros((100,400))
+init_window = np.zeros((100,character_number))
+init_kappa = np.zeros((100,K,1))
+L = [X,h10,c10,h20,c20,h30,c30,C,init_window,init_kappa]
+
+model.fit(L,list(Y),batch_size = 10,epochs = 5)
+    
+
+
+params = {"weights_lstm1": LSTM_cell1.get_weights(),
+          "weights_lstm2": LSTM_cell2.get_weights(),
+          "weights_lstm3": LSTM_cell3.get_weights(),
+          "window_weights": window_dense.get_weights(),
+          "output_dense": output_dense.get_weights(),
+          }
+
+import pickle
+f = open("keras_weights.pkl","wb")
+pickle.dump(params,f)
+f.close()
+
+f = open("model_weights.pkl", 'rb')
+params = pickle.load(f)
+f.close()
+
+#LSTM_cell1 = LSTM(400, return_state = True, name = "lstm1")
+#LSTM_cell2 = LSTM(400, return_state = True, name = "lstm2")
+#LSTM_cell3 = LSTM(400, return_state = True, name = "lstm3")
+#window_dense = Dense(3*K, name = "dense1")
+#output_dense = Dense(121, name = "dense2")
+
+
+def one_step_prop():
+    X = Input(shape=(3,))
+    window = Input((character_number,),name = "input_window")
+    h10 = Input(shape=(400,), name='h10')
+    c10 = Input(shape=(400,), name='c10')
+    h20 = Input(shape=(400,), name='h20')
+    c20 = Input(shape=(400,), name='c20')
+    h30 = Input(shape=(400,), name='h30')
+    c30 = Input(shape=(400,), name='c30')
+    
+    conc1 = Concatenate(axis=1)([X,window])
+    conc1 = Reshape((1,3+character_number))(conc1)
+    h1, _,c1  = LSTM_cell1(conc1, initial_state = [h10, c10])
+    
+    output_wl = window_dense(h1)
+    
+    conc2 = Concatenate(axis = 1)([X,h1,window])
+    conc2 = Reshape((1,3+character_number+400))(conc2)
+    h2,_,c2 = LSTM_cell2(conc2, initial_state = [h20, c20])
+
+    conc3 = Concatenate(axis = 1)([X,h2,window])
+    conc3 = Reshape((1,3+character_number+400))(conc2)
+    h3,_,c3 = LSTM_cell3(conc3, initial_state = [h30, c30])
+    
+    h = Concatenate(axis=1)([h1,h2,h3])
+    y_hat = output_dense(h)
+
+
+
+def init_layers_weight():
+    
+    one_step_prop()
+  
+    LSTM_cell1.set_weights(params["weights_lstm1"])
+    LSTM_cell2.set_weights(params["weights_lstm2"])
+    LSTM_cell3.set_weights(params["weights_lstm3"])
+    window_dense.set_weights(params["window_weights"])
+    output_dense.set_weights(params["output_weights"])
     
 
