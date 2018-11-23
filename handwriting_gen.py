@@ -124,7 +124,7 @@ def random_batches(X, Y, C, batch_size):
     return batches
 
 
-###################### Part 2: Trainig model ###########################
+###################### Part 2: Training model ###########################
 
 U = C.shape[1]
 character_number = C.shape[2]
@@ -229,7 +229,7 @@ def forward_prop(x_list,c_vec,params,layers):
 
 def compute_loss(y_hat,y):
 
-    y1, y2, y_end_of_stroke = tf.split(y,3,axis=2) #shape = [batch_size,T,1]
+    y_end_of_stroke,y1,y2 = tf.split(y,3,axis=2) #shape = [batch_size,T,1]
     y1, y2, y_end_of_stroke = tf.squeeze(y1,axis=2),tf.squeeze(y2,axis=2),tf.squeeze(y_end_of_stroke,axis=2) #shape = [batch_size,T]
     end_of_stroke = 1 / (1 + tf.exp(y_hat[:,:, 0])) #shape = [batch_size,T]
     pi_hat, mu1_hat, mu2_hat, sigma1_hat, sigma2_hat, rho_hat = tf.split(y_hat[:,:,1:],6,axis=2) #shape = [batch_size,T,M]
@@ -410,14 +410,14 @@ def generate_strokes(sentence, params):
             for m in range(M):
                 accuracy += Pi[m]
                 if accuracy > 0.5:
-                    x0,x1= np.random.multivariate_normal([Mu1[m], Mu2[m]],
+                    x1,x2= np.random.multivariate_normal([Mu1[m], Mu2[m]],
                            [[np.square(sig1[m]), Rho[m]*sig1[m] * sig2[m]],[Rho[m]*sig1[m]*sig2[m], np.square(sig2[m])]])
                     break
             proba_end = sess.run(end_of_stroke, feed_dict = {x: current_stroke})
             if proba_end > 0.5:
-                x2 = 1
+                x0 = 1
             else:
-                x2 = 0
+                x0 = 0
         current_stroke[0,0] = x0
         current_stroke[0,1] = x1
         current_stroke[0,2] = x2
@@ -492,14 +492,14 @@ def random_generate_strokes(params):
             for m in range(M):
                 accuracy += Pi[m]
                 if accuracy > 0.5:
-                    x0,x1= np.random.multivariate_normal([Mu1[m], Mu2[m]],
+                    x1,x2= np.random.multivariate_normal([Mu1[m], Mu2[m]],
                            [[np.square(sig1[m]), Rho[m]*sig1[m] * sig2[m]],[Rho[m]*sig1[m]*sig2[m], np.square(sig2[m])]])
                     break
             proba_end = sess.run(end_of_stroke, feed_dict = {x: current_stroke})
             if proba_end > 0.5:
-                x2 = 1
+                x0 = 1
             else:
-                x2 = 0
+                x0 = 0
         current_stroke[0,0] = x0
         current_stroke[0,1] = x1
         current_stroke[0,2] = x2
