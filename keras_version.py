@@ -4,6 +4,9 @@ import tensorflow as tf
 import numpy as np
 from keras.optimizers import Adam
 
+
+################## part1: Preparing data ##########################
+
 strokes = np.load('data/strokes.npy',encoding = 'latin1')
 with open('data/sentences.txt') as f:
     texts = f.readlines()
@@ -52,15 +55,16 @@ U = C.shape[1]
 batch_size = 10
 M = 20
 
+
+
+################## Defining model structure ###################################
+
+
 LSTM_cell1 = LSTM(400, return_state = True, name = "lstm1")
 LSTM_cell2 = LSTM(400, return_state = True, name = "lstm2")
 LSTM_cell3 = LSTM(400, return_state = True, name = "lstm3")
 window_dense = Dense(3*K, name = "dense1")
 output_dense = Dense(121, name = "dense2")
-
-
-
-
 
 
 def model_structure():
@@ -131,6 +135,8 @@ model= model_structure()
 
 
 
+###################### Defining custom loss function ###############################
+
 def expand_duplicate(x, N, dim):
     return tf.concat([tf.expand_dims(x, dim) for _ in range(N)],axis =dim)
 
@@ -161,10 +167,13 @@ def compute_loss(y,y_hat):
 
     return loss
 
+
+
+######################## Training the model #############################
+
 opt = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.01, clipnorm = 5.0)
 
 model.compile(optimizer=opt, loss = compute_loss)
-
 
 h10 = np.zeros((100,400))
 c10 = np.zeros((100,400))
@@ -179,6 +188,7 @@ L = [X,h10,c10,h20,c20,h30,c30,C,init_window,init_kappa]
 model.fit(L,list(Y),batch_size = 10,epochs = 5)
     
 
+##################### Saving layers parameters #############################
 
 params = {"weights_lstm1": LSTM_cell1.get_weights(),
           "weights_lstm2": LSTM_cell2.get_weights(),
@@ -191,6 +201,9 @@ import pickle
 f = open("keras_weights.pkl","wb")
 pickle.dump(params,f)
 f.close()
+
+
+###################### Loading saved weights of layer #########################
 
 f = open("model_weights.pkl", 'rb')
 params = pickle.load(f)
@@ -243,3 +256,5 @@ def init_layers_weight():
     output_dense.set_weights(params["output_weights"])
     
 
+
+   ################### Work in progress ################################
