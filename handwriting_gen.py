@@ -161,7 +161,7 @@ def init_layers():
     lstm3 = tf.nn.rnn_cell.LSTMCell(cells_number)
     init_lstm1 = lstm1.zero_state(batch_size, dtype=tf.float32) 
     init_lstm2 = lstm2.zero_state(batch_size, dtype=tf.float32)
-    init_lstm3 = lstm2.zero_state(batch_size, dtype=tf.float32)
+    init_lstm3 = lstm3.zero_state(batch_size, dtype=tf.float32)
     lstm1_state = init_lstm1
     lstm2_state = init_lstm2
     lstm3_state = init_lstm3
@@ -211,7 +211,7 @@ def forward_prop(x_list,c_vec,params,layers):
             h2, lstm2_state = lstm2(tf.concat([x_list[t], h1, window],axis=1), lstm2_state) #[x_list[t] h1 window].shape = [batch_size,3+cells_number+character_number]
         h2_list.append(h2) #h2.shape = [batch_size,cells_number] 
         with tf.variable_scope("lstm3", reuse=reuse):
-            h3, lstm3_state = lstm3(tf.concat([x_list[t], h2, window],axis=1), lstm2_state) #[x_list[t], h2, window].shape = [batch_size,3+cells_number+character_number]
+            h3, lstm3_state = lstm3(tf.concat([x_list[t], h2, window],axis=1), lstm3_state) #[x_list[t], h2, window].shape = [batch_size,3+cells_number+character_number]
         h3_list.append(h3) #h3.shape = [batch_size,cells_number]
         reuse = True
 
@@ -318,19 +318,39 @@ params = pickle.load(f)
 f.close()
 
 sentence = "Example sentence."
-
-
 def preprocess_sentence(sentence):
-    out = np.zeros((len(sentence),len(dic.values)+1))    ### dic maps letter to number, defined in loading data part
-    
+    out = np.zeros((len(sentence),len(list(dic.values()))+1))    ### dic maps letter to number, defined in loading data part
     for i in range(len(sentence)):
         if sentence[i] in cut:   #### cut contain digit and punctuation ommitted in the count of unique characters
-            out[i,len(dic.values)] = 1
+            out[i,len(list(dic.values()))] = 1
         else:
             out[i,dic[sentence[i]]] = 1
     return out
-
 sentence = preprocess_sentence(sentence)
+
+
+
+lstm1 = tf.nn.rnn_cell.LSTMCell(cells_number)
+lstm2 = tf.nn.rnn_cell.LSTMCell(cells_number)
+lstm3 = tf.nn.rnn_cell.LSTMCell(cells_number)
+weights_h1_p = tf.convert_to_tensor(params["weights_h1_p"]) #shape = [cells_number, 3*K]
+biais_p = tf.convert_to_tensor(params["biais_p"]) #shape = [3*K]
+weights_y = tf.convert_to_tensor(params["weights_y"]) #shape = [3*cell_numbers,N_out]
+biais_y = tf.convert_to_tensor(params["biais_y"]) #shape = [N_out]
+
+def init_lstm_weights():
+    x = tf.placeholder(shape = [1,3], dtype = tf.float32)
+    lstm1_state = lstm1.zero_state(1, dtype=tf.float32) 
+    lstm2_state = lstm2.zero_state(1, dtype=tf.float32)
+    lstm3_state = lstm3.zero_state(1, dtype=tf.float32)
+    window = tf.zeros([1,character_number])
+    h1,_ = lstm1(tf.concat([x, window],axis=1), lstm1_state)
+    h2,_ = lstm2(tf.concat([x, h1, window],axis=1), lstm2_state)
+    h3,_ = lstm3(tf.concat([x, h2, window],axis=1), lstm3_state)
+    lstm1.set_weights(params["weights_lstm1"])
+    lstm2.set_weights(params["weights_lstm2"])
+    lstm3.set_weights(params["weights_lstm3"])
+init_lstm_weights()
 
 
 def generate_strokes(sentence, params):
@@ -340,33 +360,16 @@ def generate_strokes(sentence, params):
     x = tf.placeholder(shape = [1,3], dtype = tf.float32)
     current_stroke = np.zeros((1,3), dtype = "float32")
     strokes = []
-    
-    lstm1 = tf.nn.rnn_cell.LSTMCell(cells_number)
-    lstm2 = tf.nn.rnn_cell.LSTMCell(cells_number)
-    lstm3 = tf.nn.rnn_cell.LSTMCell(cells_number)
+ 
     init_lstm1 = lstm1.zero_state(1, dtype=tf.float32) 
     init_lstm2 = lstm2.zero_state(1, dtype=tf.float32)
-    init_lstm3 = lstm2.zero_state(1, dtype=tf.float32)
+    init_lstm3 = lstm3.zero_state(1, dtype=tf.float32)
     lstm1_state = init_lstm1
     lstm2_state = init_lstm2
     lstm3_state = init_lstm3
     
-    weights_h1_p = tf.convert_to_tensor(params["weights_h1_p"]) #shape = [cells_number, 3*K]
-    biais_p = tf.convert_to_tensor(params["biais_p"]) #shape = [3*K]
-    weights_y = tf.convert_to_tensor(params["weights_y"]) #shape = [3*cell_numbers,N_out]
-    biais_y = tf.convert_to_tensor(params["biais_y"]) #shape = [N_out]
     previous_kappa = tf.zeros([K,1])  
     window = tf.zeros([1,character_number])
-    
-    def init_lstm_weights():
-        h1,_ = lstm1(tf.concat([x, window],axis=1), lstm1_state)
-        h2,_ = lstm2(tf.concat([x, h1, window],axis=1), lstm2_state)
-        h3,_ = lstm3(tf.concat([x, h2, window],axis=1), lstm2_state)
-        lstm1.set_weights(params["weights_lstm1"])
-        lstm2.set_weights(params["weights_lstm2"])
-        lstm3.set_weights(params["weights_lstm3"])
-        
-    init_lstm_weights()
     
     u = expand_duplicate(np.array([i for i in range(1,length+2)], dtype=np.float32),K,0) #u.shape = [K,length+1] 
 
@@ -387,7 +390,7 @@ def generate_strokes(sentence, params):
         with tf.variable_scope("lstm2", reuse=reuse):
             h2, lstm2_state = lstm2(tf.concat([x, h1, window],axis=1), lstm2_state) #[x_list[t] h1 window].shape = [1,3+cells_number+character_number]
         with tf.variable_scope("lstm3", reuse=reuse):
-            h3, lstm3_state = lstm3(tf.concat([x, h2, window],axis=1), lstm2_state) #[x_list[t], h2, window].shape = [1,3+cells_number+character_number]
+            h3, lstm3_state = lstm3(tf.concat([x, h2, window],axis=1), lstm3_state) #[x_list[t], h2, window].shape = [1,3+cells_number+character_number]
         h = tf.concat([h1,h2,h3], axis = 1) #shape = [1,3*cells_number]
         y_hat = tf.nn.xw_plus_b(h,weights_y,biais_y) #shape = [1,N_out]
         
@@ -433,36 +436,19 @@ def generate_strokes(sentence, params):
 
 
 def random_generate_strokes(params):
-    
-    ops.reset_default_graph()
-    
+        
     x = tf.placeholder(shape = [1,3], dtype = tf.float32)
     current_stroke = np.zeros((1,3), dtype = "float32")
     strokes = []
-    
-    lstm1 = tf.nn.rnn_cell.LSTMCell(cells_number)
-    lstm2 = tf.nn.rnn_cell.LSTMCell(cells_number)
-    lstm3 = tf.nn.rnn_cell.LSTMCell(cells_number)
+  
     init_lstm1 = lstm1.zero_state(1, dtype=tf.float32) 
     init_lstm2 = lstm2.zero_state(1, dtype=tf.float32)
-    init_lstm3 = lstm2.zero_state(1, dtype=tf.float32)
+    init_lstm3 = lstm3.zero_state(1, dtype=tf.float32)
     lstm1_state = init_lstm1
     lstm2_state = init_lstm2
     lstm3_state = init_lstm3
     
-    weights_y = tf.convert_to_tensor(params["weights_y"]) #shape = [3*cell_numbers,N_out]
-    biais_y = tf.convert_to_tensor(params["biais_y"]) #shape = [N_out]
     window = tf.zeros([1,character_number])
-    
-    def init_lstm_weights():
-        h1,_ = lstm1(tf.concat([x,window],axis=1), lstm1_state)
-        h2,_ = lstm2(tf.concat([x, h1],axis=1), lstm2_state)
-        h3,_ = lstm3(tf.concat([x, h2],axis=1), lstm2_state)
-        lstm1.set_weights(params["weights_lstm1"])
-        lstm2.set_weights(params["weights_lstm2"])
-        lstm3.set_weights(params["weights_lstm3"])
-        
-    init_lstm_weights()
     
     reuse = False
     strokes.append([0,0,0])
@@ -473,7 +459,7 @@ def random_generate_strokes(params):
         with tf.variable_scope("lstm2", reuse=reuse):
             h2, lstm2_state = lstm2(tf.concat([x, h1,window],axis=1), lstm2_state) #[x_list[t] h1 window].shape = [1,3+cells_number+character_number]
         with tf.variable_scope("lstm3", reuse=reuse):
-            h3, lstm3_state = lstm3(tf.concat([x, h2,window],axis=1), lstm2_state) #[x_list[t], h2, window].shape = [1,3+cells_number+character_number]
+            h3, lstm3_state = lstm3(tf.concat([x, h2,window],axis=1), lstm3_state) #[x_list[t], h2, window].shape = [1,3+cells_number+character_number]
         h = tf.concat([h1,h2,h3], axis = 1) #shape = [1,3*cells_number]
         y_hat = tf.nn.xw_plus_b(h,weights_y,biais_y) #shape = [1,N_out]
         
