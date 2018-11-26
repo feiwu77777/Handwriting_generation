@@ -205,7 +205,7 @@ f.close()
 
 ###################### Loading saved weights of layer #########################
 
-f = open("model_weights.pkl", 'rb')
+f = open("keras_weights.pkl", 'rb')
 params = pickle.load(f)
 f.close()
 
@@ -215,10 +215,17 @@ LSTM_cell3 = LSTM(400, return_state = True, name = "lstm3")
 window_dense = Dense(3*K, name = "dense1")
 output_dense = Dense(121, name = "dense2")
 
+def calculate_pi(x):
+    return tf.exp(x) / tf.reduce_sum(tf.exp(x))
+    
 
-def one_step_prop():
-    X = Input(shape=(3,))
-    window = Input((character_number,),name = "input_window")
+
+def inference_model():
+    
+    X = Input(shape=(3,),name = "input_x")
+    c_vec = Input(shape=(U,character_number),name = "input_cvec")
+    init_window = Input((character_number,),name = "input_window")
+    init_kappa = Input(shape=(K,1),name = "input_kappa")
     h10 = Input(shape=(400,), name='h10')
     c10 = Input(shape=(400,), name='c10')
     h20 = Input(shape=(400,), name='h20')
@@ -226,35 +233,97 @@ def one_step_prop():
     h30 = Input(shape=(400,), name='h30')
     c30 = Input(shape=(400,), name='c30')
     
-    conc1 = Concatenate(axis=1)([X,window])
-    conc1 = Reshape((1,3+character_number))(conc1)
+    u = np.concatenate([np.expand_dims(np.array([i for i in range(1,U+2)], dtype=np.float32),0) for _ in range(K)], axis = 0) #shape = [K,U]
+    
+    t = 0    
+    conc1 = Concatenate(axis=1, name ="conc1-%i" % t)([X,init_window])
+    conc1 = Reshape((1,3+character_number), name = "reshape1-%i" % t)(conc1)
     h1, _,c1  = LSTM_cell1(conc1, initial_state = [h10, c10])
     
     output_wl = window_dense(h1)
+    alpha_hat, beta_hat, kappa_hat = Lambda(lambda x: [x[:,:K],x[:,K:2*K],x[:,2*K:3*K]],name="lamb2-%i" % t)(output_wl)
+    alpha = Lambda(lambda x: tf.expand_dims(tf.exp(x),axis=2),name="lamb3-%i" % t)(alpha_hat)
+    beta = Lambda(lambda x: tf.expand_dims(tf.exp(x),axis=2),name="lamb4-%i" % t)(beta_hat)
+    kappa = Lambda(lambda x: tf.expand_dims(tf.exp(x),axis=2),name="lamb5-%i" % t)(kappa_hat)
+    kappa = Add(name = "add1-%i" % t)([kappa,init_kappa])
+    un = Lambda(lambda x: tf.square(x-u), name = "lamb6-%i" % t)(kappa)
+    deux = Multiply(name = "mult1-%i" % t)([beta,un])
+    trois = Lambda(lambda x: tf.exp(-x), name = "lamb7-%i" % t)(deux)
+    quatro = Multiply(name = "mult2-%i" % t)([alpha,trois])
+    phi = Lambda(lambda x: tf.reduce_sum(x,axis = 1), name = "lamb8-%i" % t)(quatro)
+    product = Lambda(lambda x: x[:,:-1])(phi)
+    window = Dot(axes = [1,1], name = "dot1-%i" % t)([product,c_vec]) 
     
-    conc2 = Concatenate(axis = 1)([X,h1,window])
-    conc2 = Reshape((1,3+character_number+400))(conc2)
+    conc2 = Concatenate(axis = 1, name = "conc2-%i" % t)([X,h1,window])
+    conc2 = Reshape((1,3+character_number+400), name = "reshape2-%i" % t)(conc2)
     h2,_,c2 = LSTM_cell2(conc2, initial_state = [h20, c20])
 
-    conc3 = Concatenate(axis = 1)([X,h2,window])
-    conc3 = Reshape((1,3+character_number+400))(conc2)
+    
+    conc3 = Concatenate(axis = 1, name = "conc3-%i" % t)([X,h2,window])
+    conc3 = Reshape((1,3+character_number+400), name = "reshape3-%i" % t)(conc2)
     h3,_,c3 = LSTM_cell3(conc3, initial_state = [h30, c30])
     
-    h = Concatenate(axis=1)([h1,h2,h3])
+    h = Concatenate(axis=1, name = "conc4-%i" % t)([h1,h2,h3])
     y_hat = output_dense(h)
-
-
-
-def init_layers_weight():
     
-    one_step_prop()
+    model = Model(inputs = [X,h10,c10,h20,c20,h30,c30,c_vec,init_window,init_kappa], outputs = [y_hat,h1,c1,h2,c2,h3,c3,window,kappa,phi])
+    
+    return model
+
+
+infe = inference_model()
   
-    LSTM_cell1.set_weights(params["weights_lstm1"])
-    LSTM_cell2.set_weights(params["weights_lstm2"])
-    LSTM_cell3.set_weights(params["weights_lstm3"])
-    window_dense.set_weights(params["window_weights"])
-    output_dense.set_weights(params["output_weights"])
+LSTM_cell1.set_weights(params["weights_lstm1"])
+LSTM_cell2.set_weights(params["weights_lstm2"])
+LSTM_cell3.set_weights(params["weights_lstm3"])
+window_dense.set_weights(params["window_weights"])
+output_dense.set_weights(params["output_weights"])
+
+
+
+h1 = np.zeros((1,400))
+c1 = np.zeros((1,400))
+h2 = np.zeros((1,400))
+c2 = np.zeros((1,400))
+h3 = np.zeros((1,400))
+c3 = np.zeros((1,400))
+window = np.zeros((1,character_number))
+kappa = np.zeros((1,K,1))
+L = [np.zeros((1,3)),h10,c10,h20,c20,h30,c30,C,window,kappa]
+
+
+strokes = []
+while True:
     
+    y_hat,h1,c1,h2,c2,h3,c3,window,kappa,phi = infe.predict(L)
+    if phi(U+1) > phi(u):
+        break
+    x = sample(y_hat)
+    strokes.append(x)
+
+def sample(y_hat):
+    end_of_stroke = 1 / (1 + np.exp(y_hat[0,0]))
+    pi_hat, mu1_hat, mu2_hat, sigma1_hat, sigma2_hat, rho_hat = np.split(y_hat[0,1:],6,axis=0) #shape = [20,]
+    pi = np.exp(pi_hat) / np.reduce_sum(np.exp(pi_hat)) #shape = [20,]
+    sigma1 = tf.exp(sigma1_hat)#shape = [M,]
+    sigma2 = tf.exp(sigma2_hat)#shape = [M,]
+    mu1 = mu1_hat#shape = [M,]
+    mu2 = mu2_hat#shape = [M,]
+    rho = tf.tanh(rho_hat) #shape = [M,]
+    accuracy = 0
+    for m in range(M):
+        accuracy += pi[m]
+        if accuracy > 0.5:
+            x1,x2= np.random.multivariate_normal([mu1[m], mu2[m]],
+                   [[np.square(sigma1[m]), rho[m]*sigma1[m] * sigma2[m]],[rho[m]*sigma1[m]*sigma2[m], np.square(sigma2[m])]])
+            break
+    if tf.cond(end_of_stroke > 0.5):
+        x0 = 1
+    else:
+        x0 = 0
+    x = np.array([x0,x1,x2])
+    return RepeatVector(1)(x)
+
 
 
    ################### Work in progress ################################
