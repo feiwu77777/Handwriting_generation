@@ -354,8 +354,7 @@ init_lstm_weights()
 
 
 def generate_strokes(sentence, params):
-    ops.reset_default_graph()
-    
+
     length = sentence.shape[0]
     x = tf.placeholder(shape = [1,3], dtype = tf.float32)
     current_stroke = np.zeros((1,3), dtype = "float32")
