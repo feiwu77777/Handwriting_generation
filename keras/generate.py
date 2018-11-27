@@ -93,7 +93,7 @@ def generate_strokes(sentence):
     window = np.zeros((1,character_number))
     kappa = np.zeros((1,K,1))
     x = np.zeros((1,3))    
-    strokes = []
+    strokes = [x]
     
     while True:
         L = [x,h1,c1,h2,c2,h3,c3,sentence,window,kappa]
