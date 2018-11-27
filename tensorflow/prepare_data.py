@@ -95,3 +95,14 @@ cells_number = 400
 batch_size = 16
 K = 10
 M = 20
+
+
+def preprocess_sentence(sentence):
+    out = np.zeros((len(sentence),len(list(dic.values()))+1))    ### dic maps letter to number, defined in loading data part
+    
+    for i in range(len(sentence)):
+        if sentence[i] in cut:   #### cut contain digit and punctuation ommitted in the count of unique characters
+            out[i,len(list(dic.values()))] = 1
+        else:
+            out[i,dic[sentence[i]]] = 1
+    return out
