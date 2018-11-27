@@ -6,6 +6,9 @@ from keras.optimizers import Adam
 from prepare_data import *
 
 
+##################### part 3: training a model #############################
+
+
 LSTM_cell1 = LSTM(cells_number, return_state = True, name = "lstm1")
 LSTM_cell2 = LSTM(cells_number, return_state = True, name = "lstm2")
 LSTM_cell3 = LSTM(cells_number, return_state = True, name = "lstm3")
