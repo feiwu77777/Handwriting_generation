@@ -97,13 +97,9 @@ def generate_strokes(sentence, params):
                 print("sentence scan end")
                 break
             Pi,Mu1,Mu2,sig1,sig2,Rho = sess.run([pi,mu1,mu2,sigma1,sigma2,rho], feed_dict = {x: current_stroke})
-            accuracy = 0
-            for m in range(M):
-                accuracy += Pi[m]
-                if accuracy > 0.5:
-                    x1,x2= np.random.multivariate_normal([Mu1[m], Mu2[m]],
-                           [[np.square(sig1[m]), Rho[m]*sig1[m] * sig2[m]],[Rho[m]*sig1[m]*sig2[m], np.square(sig2[m])]])
-                    break
+            g = np.random.choice(np.arange(M), p = Pi)
+            x1,x2= np.random.multivariate_normal([Mu1[g], Mu2[g]],
+                   [[np.square(sig1[g]), Rho[g]*sig1[g] * sig2[g]],[Rho[g]*sig1[g]*sig2[g], np.square(sig2[g])]])
             proba_end = sess.run(end_of_stroke, feed_dict = {x: current_stroke})
             if proba_end > 0.5:
                 x0 = 1
@@ -162,13 +158,9 @@ def random_generate_strokes(params):
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             Pi,Mu1,Mu2,sig1,sig2,Rho = sess.run([pi,mu1,mu2,sigma1,sigma2,rho], feed_dict = {x: current_stroke})
-            accuracy = 0
-            for m in range(M):
-                accuracy += Pi[m]
-                if accuracy > 0.5:
-                    x0,x1= np.random.multivariate_normal([Mu1[m], Mu2[m]],
-                           [[np.square(sig1[m]), Rho[m]*sig1[m] * sig2[m]],[Rho[m]*sig1[m]*sig2[m], np.square(sig2[m])]])
-                    break
+            g = np.random.choice(np.arange(M), p = Pi)
+            x1,x2= np.random.multivariate_normal([Mu1[g], Mu2[g]],
+                   [[np.square(sig1[g]), Rho[g]*sig1[g] * sig2[g]],[Rho[g]*sig1[g]*sig2[g], np.square(sig2[g])]])
             proba_end = sess.run(end_of_stroke, feed_dict = {x: current_stroke})
             if proba_end > 0.5:
                 x2 = 1
