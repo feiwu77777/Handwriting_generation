@@ -12,13 +12,9 @@ def sample(y_hat):
     mu1 = mu1_hat#shape = [M,]
     mu2 = mu2_hat#shape = [M,]
     rho = np.tanh(rho_hat) #shape = [M,]
-    accuracy = 0
-    for m in range(M):
-        accuracy += pi[m]
-        if accuracy > 0.5:
-            x1,x2= np.random.multivariate_normal([mu1[m], mu2[m]],
-                   [[np.square(sigma1[m]), rho[m]*sigma1[m] * sigma2[m]],[rho[m]*sigma1[m]*sigma2[m], np.square(sigma2[m])]])
-            break
+    g = np.random.choice(np.arange(M), p = Pi)
+    x1,x2= np.random.multivariate_normal([Mu1[g], Mu2[g]],
+           [[np.square(sig1[g]), Rho[g]*sig1[g] * sig2[g]],[Rho[g]*sig1[g]*sig2[g], np.square(sig2[g])]])
     if end_of_stroke > 0.5:
         x0 = 1
     else:
