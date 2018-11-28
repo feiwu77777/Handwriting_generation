@@ -60,36 +60,36 @@ def generate_strokes(sentence, params):
     
     u = expand_duplicate(np.array([i for i in range(1,length+2)], dtype=np.float32),K,0) #u.shape = [K,length+1] 
 
-    reuse = False
+    with tf.variable_scope("lstm1", reuse=reuse):
+        h1, lstm1_state = lstm1(tf.concat([x, window],axis=1), lstm1_state) #[x_list[t] window].shape = [3 + character_number]
+    output_wl = tf.nn.xw_plus_b(h1, weights_h1_p, biais_p) #shape = [1,3*K]      h1.shape = [1,cells_number]
+    alpha_hat, beta_hat, kappa_hat = tf.split(tf.reshape(output_wl,[3*K,1]),3,axis=0) #shape = [K,1]
+    alpha = tf.exp(alpha_hat) #shape = [K,1]
+    beta = tf.exp(beta_hat) #shape = [K,1]
+    kappa = previous_kappa + tf.exp(kappa_hat) #shape = [K,1]
+    previous_kappa = kappa
+    phi = tf.reduce_sum(alpha*tf.exp(-beta*tf.square(kappa-u)),axis=0,keepdims=True) #phi.shape = [1,length+1] 
+    window = tf.matmul(phi[:,:-1], sentence) #shape = [1, character_number] 
+    with tf.variable_scope("lstm2", reuse=reuse):
+        h2, lstm2_state = lstm2(tf.concat([x, h1, window],axis=1), lstm2_state) #[x_list[t] h1 window].shape = [1,3+cells_number+character_number]
+    with tf.variable_scope("lstm3", reuse=reuse):
+        h3, lstm3_state = lstm3(tf.concat([x, h2, window],axis=1), lstm3_state) #[x_list[t], h2, window].shape = [1,3+cells_number+character_number]
+    h = tf.concat([h1,h2,h3], axis = 1) #shape = [1,3*cells_number]
+    y_hat = tf.nn.xw_plus_b(h,weights_y,biais_y) #shape = [1,N_out]
+
+    end_of_stroke = 1 / (1 + tf.exp(y_hat[0,0]))
+    pi_hat, mu1_hat, mu2_hat, sigma1_hat, sigma2_hat, rho_hat = tf.split(y_hat[0,1:],6,axis=0) #shape = [20,]
+    pi = tf.exp(pi_hat) / tf.reduce_sum(tf.exp(pi_hat)) #shape = [20,]
+    sigma1 = tf.exp(sigma1_hat)#shape = [M,]
+    sigma2 = tf.exp(sigma2_hat)#shape = [M,]
+    mu1 = mu1_hat#shape = [M,]
+    mu2 = mu2_hat#shape = [M,]
+    rho = tf.tanh(rho_hat) #shape = [M,]
+    
     strokes.append([0,0,0])
     
     while True:
     #for i in range(T-1):
-        with tf.variable_scope("lstm1", reuse=reuse):
-            h1, lstm1_state = lstm1(tf.concat([x, window],axis=1), lstm1_state) #[x_list[t] window].shape = [3 + character_number]
-        output_wl = tf.nn.xw_plus_b(h1, weights_h1_p, biais_p) #shape = [1,3*K]      h1.shape = [1,cells_number]
-        alpha_hat, beta_hat, kappa_hat = tf.split(tf.reshape(output_wl,[3*K,1]),3,axis=0) #shape = [K,1]
-        alpha = tf.exp(alpha_hat) #shape = [K,1]
-        beta = tf.exp(beta_hat) #shape = [K,1]
-        kappa = previous_kappa + tf.exp(kappa_hat) #shape = [K,1]
-        previous_kappa = kappa
-        phi = tf.reduce_sum(alpha*tf.exp(-beta*tf.square(kappa-u)),axis=0,keepdims=True) #phi.shape = [1,length+1] 
-        window = tf.matmul(phi[:,:-1], sentence) #shape = [1, character_number] 
-        with tf.variable_scope("lstm2", reuse=reuse):
-            h2, lstm2_state = lstm2(tf.concat([x, h1, window],axis=1), lstm2_state) #[x_list[t] h1 window].shape = [1,3+cells_number+character_number]
-        with tf.variable_scope("lstm3", reuse=reuse):
-            h3, lstm3_state = lstm3(tf.concat([x, h2, window],axis=1), lstm3_state) #[x_list[t], h2, window].shape = [1,3+cells_number+character_number]
-        h = tf.concat([h1,h2,h3], axis = 1) #shape = [1,3*cells_number]
-        y_hat = tf.nn.xw_plus_b(h,weights_y,biais_y) #shape = [1,N_out]
-        
-        end_of_stroke = 1 / (1 + tf.exp(y_hat[0,0]))
-        pi_hat, mu1_hat, mu2_hat, sigma1_hat, sigma2_hat, rho_hat = tf.split(y_hat[0,1:],6,axis=0) #shape = [20,]
-        pi = tf.exp(pi_hat) / tf.reduce_sum(tf.exp(pi_hat)) #shape = [20,]
-        sigma1 = tf.exp(sigma1_hat)#shape = [M,]
-        sigma2 = tf.exp(sigma2_hat)#shape = [M,]
-        mu1 = mu1_hat#shape = [M,]
-        mu2 = mu2_hat#shape = [M,]
-        rho = tf.tanh(rho_hat) #shape = [M,]
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             PHI = sess.run(phi, feed_dict = {x: current_stroke})
@@ -113,7 +113,6 @@ def generate_strokes(sentence, params):
         current_stroke[0,1] = x1
         current_stroke[0,2] = x2
         strokes.append([x0,x1,x2])
-        reuse = True
         if len(strokes) >= 2000:
             print("limit")
             break
@@ -139,27 +138,27 @@ def random_generate_strokes(params):
     
     window = tf.zeros([1,character_number])
     
-    reuse = False
+    with tf.variable_scope("lstm1", reuse=reuse):
+        h1, lstm1_state = lstm1(tf.concat([x,window],axis=1), lstm1_state) #[x_list[t] window].shape = [3 + character_number]
+    with tf.variable_scope("lstm2", reuse=reuse):
+        h2, lstm2_state = lstm2(tf.concat([x, h1,window],axis=1), lstm2_state) #[x_list[t] h1 window].shape = [1,3+cells_number+character_number]
+    with tf.variable_scope("lstm3", reuse=reuse):
+        h3, lstm3_state = lstm3(tf.concat([x, h2,window],axis=1), lstm3_state) #[x_list[t], h2, window].shape = [1,3+cells_number+character_number]
+    h = tf.concat([h1,h2,h3], axis = 1) #shape = [1,3*cells_number]
+    y_hat = tf.nn.xw_plus_b(h,weights_y,biais_y) #shape = [1,N_out]
+
+    end_of_stroke = 1 / (1 + tf.exp(y_hat[0,0]))
+    pi_hat, mu1_hat, mu2_hat, sigma1_hat, sigma2_hat, rho_hat = tf.split(y_hat[0,1:],6,axis=0) #shape = [20,]
+    pi = tf.exp(pi_hat) / tf.reduce_sum(tf.exp(pi_hat)) #shape = [20,]
+    sigma1 = tf.exp(sigma1_hat)#shape = [M,]
+    sigma2 = tf.exp(sigma2_hat)#shape = [M,]
+    mu1 = mu1_hat#shape = [M,]
+    mu2 = mu2_hat#shape = [M,]
+    rho = tf.tanh(rho_hat) #shape = [M,]
+    
     strokes.append([0,0,0])
     
     for i in range(T-1):
-        with tf.variable_scope("lstm1", reuse=reuse):
-            h1, lstm1_state = lstm1(tf.concat([x,window],axis=1), lstm1_state) #[x_list[t] window].shape = [3 + character_number]
-        with tf.variable_scope("lstm2", reuse=reuse):
-            h2, lstm2_state = lstm2(tf.concat([x, h1,window],axis=1), lstm2_state) #[x_list[t] h1 window].shape = [1,3+cells_number+character_number]
-        with tf.variable_scope("lstm3", reuse=reuse):
-            h3, lstm3_state = lstm3(tf.concat([x, h2,window],axis=1), lstm3_state) #[x_list[t], h2, window].shape = [1,3+cells_number+character_number]
-        h = tf.concat([h1,h2,h3], axis = 1) #shape = [1,3*cells_number]
-        y_hat = tf.nn.xw_plus_b(h,weights_y,biais_y) #shape = [1,N_out]
-        
-        end_of_stroke = 1 / (1 + tf.exp(y_hat[0,0]))
-        pi_hat, mu1_hat, mu2_hat, sigma1_hat, sigma2_hat, rho_hat = tf.split(y_hat[0,1:],6,axis=0) #shape = [20,]
-        pi = tf.exp(pi_hat) / tf.reduce_sum(tf.exp(pi_hat)) #shape = [20,]
-        sigma1 = tf.exp(sigma1_hat)#shape = [M,]
-        sigma2 = tf.exp(sigma2_hat)#shape = [M,]
-        mu1 = mu1_hat#shape = [M,]
-        mu2 = mu2_hat#shape = [M,]
-        rho = tf.tanh(rho_hat) #shape = [M,]
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             Pi,Mu1,Mu2,sig1,sig2,Rho = sess.run([pi,mu1,mu2,sigma1,sigma2,rho], feed_dict = {x: current_stroke})
