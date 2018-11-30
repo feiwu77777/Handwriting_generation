@@ -34,6 +34,15 @@ This tensor of strokes is fed to the NN as the main input, the tensor of texts i
 
 # First results
 
-Following are a few results output by the testing model with 2 lstm layer, only fed with strokes of maximum 600 timesteps during 10 epochs.
+Following are a few random outputs by the testing model with 2 lstm layer, only fed with strokes of maximum 600 timesteps during 10 epochs.
 
 ![img1](https://user-images.githubusercontent.com/34350063/49277982-71805700-f4be-11e8-8255-9b6124fb7d46.png)
+
+![img2](https://user-images.githubusercontent.com/34350063/49278104-c15f1e00-f4be-11e8-82ad-57f6443d78da.png)
+
+![img3](https://user-images.githubusercontent.com/34350063/49278155-dfc51980-f4be-11e8-8d2a-a9c07feaa492.png)
+
+# Error analysis
+
+- The end of stroke probability is not learned, there are as much 1 than 0 in the fisrt columns of the outputs
+- Investing on re training with a basic loss function to compare results
