@@ -36,5 +36,4 @@ This tensor of strokes is fed to the NN as the main input, the tensor of texts i
 
 Following are a few results output by the testing model with 2 lstm layer, only fed with strokes of maximum 600 timesteps during 10 epochs.
 
-![Alt text](documents/img.jpg?raw=true "Title")
-
+![img1](https://user-images.githubusercontent.com/34350063/49277982-71805700-f4be-11e8-8255-9b6124fb7d46.png)
