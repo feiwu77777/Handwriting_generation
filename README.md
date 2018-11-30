@@ -30,3 +30,11 @@ Each sentence is paired with an array of shape (T,3):
 
 
 This tensor of strokes is fed to the NN as the main input, the tensor of texts is fed as a helper to the learning process and the NN given the stroke at T = t will try to predict the stroke at T = t+1.
+
+
+# First results
+
+Following are a few results output by the testing model with 2 lstm layer, only fed with strokes of maximum 600 timesteps during 10 epochs.
+
+![Alt text](documents/img.jpg?raw=true "Title")
+
