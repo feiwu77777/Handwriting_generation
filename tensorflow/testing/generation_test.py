@@ -77,19 +77,6 @@ saver = tf.train.Saver()
 current_stroke = np.zeros((1,3))
 strokes = [[0,0,0]]
 
-#with tf.Session() as sess:
-#    saver.restore(sess,"saved/weights.ckpt")
-#    for i in range(T-1):
-#        Pi,Mu1,Mu2,sig1,sig2,Rho = sess.run([pi,mu1,mu2,sigma1,sigma2,rho], feed_dict = {x: current_stroke})
-#        rand = np.random.choice(np.arange(M), p = Pi)
-#        x1,x2= np.random.multivariate_normal([Mu1[rand], Mu2[rand]],
-#               [[np.square(sig1[rand]), Rho[rand]*sig1[rand] * sig2[rand]],[Rho[rand]*sig1[rand]*sig2[rand], np.square(sig2[rand])]])
-#        proba_end = sess.run(end_of_stroke, feed_dict = {x: current_stroke})
-#        x0 = np.random.binomial(1,proba_end)
-#        current_stroke[0,0] = x0
-#        current_stroke[0,1] = x1
-#        current_stroke[0,2] = x2
-#        strokes.append([x0,x1,x2])
 
 sess = tf.Session()
 saver.restore(sess,"saved/weights.ckpt")
@@ -107,8 +94,9 @@ for i in range(200):
 sess.close()
 
 strokes = np.array(strokes)
+strokes = denormarlize(strokes, norm_params)
 
 plot_stroke(strokes)
 
-#from tensorflow.python.tools import inspect_checkpoint as chkp
-#chkp.print_tensors_in_checkpoint_file("saved/weights.ckpt", tensor_name='', all_tensors=True)
+from tensorflow.python.tools import inspect_checkpoint as chkp
+chkp.print_tensors_in_checkpoint_file("saved/weights.ckpt", tensor_name='', all_tensors=True)
