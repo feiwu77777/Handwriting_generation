@@ -34,7 +34,7 @@ This tensor of strokes is fed to the NN as the main input, the tensor of texts i
 
 # First results
 
-Following are a few random outputs by the testing model (in the tensorflow folder) with 2 lstm layer, only fed with strokes of maximum 600 timesteps during 10 epochs.
+Following are a few random outputs by the testing model (in the tensorflow folder) with 2 lstm layer, fed with strokes of maximum 600 timesteps during 10 epochs. Data are also normalized with mean = 0 and std = 1.
 
 ![asd](https://user-images.githubusercontent.com/34350063/49361900-1f3a7280-f718-11e8-9ab2-3d94b305f044.png)
 
