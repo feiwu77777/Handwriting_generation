@@ -36,6 +36,13 @@ This tensor of strokes is fed to the NN as the main input, the tensor of texts i
 
 Following are a few random outputs by the testing model (in the tensorflow folder) with 2 lstm layer, only fed with strokes of maximum 600 timesteps during 10 epochs.
 
+![asd](https://user-images.githubusercontent.com/34350063/49361900-1f3a7280-f718-11e8-9ab2-3d94b305f044.png)
+
+![as](https://user-images.githubusercontent.com/34350063/49361918-28c3da80-f718-11e8-9cb8-84cc956c6937.png)
+
+![asq](https://user-images.githubusercontent.com/34350063/49361931-311c1580-f718-11e8-9588-77a97134267b.png)
+
+
 # Error analysis
 
 - Most of the generated examples have strokes going from left to right which is a good point.
