@@ -1,24 +1,7 @@
 import numpy as np
-
 ##################  Part 1: Preparing data ##################
 
 T = 600
-
-def cut_same(strokes):    ### Fuse two consecutive same stroke
-    L = []
-    for i in range(strokes.shape[0]):
-        stroke = strokes[i]
-        array = []
-        array.append(stroke[0,:])
-        for j in range(1,stroke.shape[0]):
-            if sum(stroke[j,:] == np.zeros((3,))) == 3:
-                pass
-            else:
-                array.append(stroke[j,:])
-        array = np.array(array)
-        L.append(array)
-    return L
-
 
 def filter_data(strokes,texts):
     indices = []
@@ -71,22 +54,54 @@ def preprocess_text(texts):
             
     return C_vec, dictionnary, cut,texts
 
-
 def load_data():
-    strokes = np.load('strokes.npy',encoding = 'latin1')
+    strokes_raw = np.load('strokes.npy',encoding = 'latin1')
+    strokes, norm_params = normalize(strokes_raw)
     with open('sentences.txt') as f:
         texts = f.readlines()
-    strokes = cut_same(strokes)
     strokes,texts = filter_data(strokes,texts)
     strokes = preprocess_strokes(strokes)
     Y = np.zeros(strokes.shape,dtype ="float32")
     for i in range(Y.shape[0]):
         Y[i,:T-1,:] = strokes[i,1:T,:]
     C_vec,dic,cut,texts = preprocess_text(texts)
-    return strokes,Y,C_vec,dic,cut,texts
+    return strokes,Y,C_vec,dic,cut,texts,norm_params
 
-
-X,Y,C,dic,cut,texts = load_data()      #X contains only 357 examples for the purpose of testing the code
+def normalize(strokes):
+    tot = 0
+    for i in range(6000):
+        tot += strokes[i].shape[0]
+        
+    ha = np.zeros((tot,2))
+    ind = 0
+    for i in range(6000):
+        leng = strokes[i].shape[0]
+        ha[ind:ind+leng] = strokes[i][:,1:]
+        ind = ind + leng
+        
+    mean1 = np.mean(ha[:,0])
+    mean2 = np.mean(ha[:,1])
+    std1 = np.std(ha[:,0])
+    std2 = np.std(ha[:,1])
+    
+    for i in range(tot):
+        ha[i,0] = (ha[i,0] - mean1)/std1
+        ha[i,1] = (ha[i,1] - mean2)/std2
+    
+    ind = 0
+    for i in range(6000):
+        stroke = strokes[i]
+        strokes[i][:,1:] = ha[ind:ind+stroke.shape[0]]
+        ind = ind + stroke.shape[0]
+    return strokes,[mean1,mean2,std1,std2]
+        
+def denormarlize(strokes,params):
+    for i in range(strokes.shape[0]):
+        strokes[i,1] = strokes[i,1]*params[2] + params[0]
+        strokes[i,2] = strokes[i,2]*params[3] + params[1]
+    return strokes
+    
+X,Y,C,dic,cut,texts,norm_params = load_data()      
 
 
 U = C.shape[1]
