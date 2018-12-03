@@ -46,5 +46,4 @@ Following are a few random outputs by the testing model (in the tensorflow folde
 # Error analysis
 
 - Most of the generated examples have strokes going from left to right which is a good point.
-- Some of them seem to begin forming characters.
 - Investing on increasing the number of training examples (currently with 2500 examples) to check results.
