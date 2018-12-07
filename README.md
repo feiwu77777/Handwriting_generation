@@ -27,6 +27,7 @@ Each sentence is paired with an array of shape (T,3):
   - Second and third columns represent the coordinates of the strokes relatively to the previous stroke. 
   - All strokes are regrouped as a tensor of shape (m, T, 3) with 'T' the number of stroke of the longest handwritten sentence. 
   - All other array of stroke are padded with vector of zeros until their number of strokes reaches T.
+  - Values are normalized with mean = 0 and std = 1.
 
 
 This tensor of strokes is fed to the NN as the main input, the tensor of texts is fed as a helper to the learning process and the NN given the stroke at T = t will try to predict the stroke at T = t+1.
@@ -34,7 +35,7 @@ This tensor of strokes is fed to the NN as the main input, the tensor of texts i
 
 # First results
 
-Following are a few random outputs by the testing model (in the tensorflow folder) with 2 lstm layer, fed with strokes of maximum 600 timesteps during 10 epochs. Data are also normalized with mean = 0 and std = 1.
+Following are a few random outputs by the testing model (in the tensorflow folder) with 2 lstm layer, fed with strokes of maximum 600 timesteps during 10 epochs. 
 
 ![asd](https://user-images.githubusercontent.com/34350063/49361900-1f3a7280-f718-11e8-9ab2-3d94b305f044.png)
 
