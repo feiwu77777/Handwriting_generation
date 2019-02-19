@@ -78,7 +78,7 @@ lstm3 = tf.nn.rnn_cell.LSTMCell(cells_number, name = "lstm3")
 weights_y = tf.Variable(tf.truncated_normal([3*cells_number, N_out], 0.0, 0.075, dtype=tf.float32), name = "weights_y") #shape = [3*cell_numbers,N_out]
 bias_y = tf.Variable(tf.zeros([N_out]), name = "bias_y")
 
-y_hat = compute_loss(x_list)
+y_hat = forward_prop(x_list)
 
 cost = compute_loss(y_hat,y)
 optimizer = tf.train.AdamOptimizer(learning_rate=0.0001)
