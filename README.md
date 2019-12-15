@@ -48,3 +48,7 @@ Following are a few random outputs by the testing model (in the tensorflow folde
 
 - Most of the generated examples have strokes going from left to right which is a good point.
 - Investing on increasing the number of training examples (currently with 2500 examples) to check results.
+
+# Recent results with pytorch
+- A random stroke generation result
+![Screenshot from 2019-12-15 17-57-46](https://user-images.githubusercontent.com/34350063/70866013-83ffee00-1f64-11ea-9f74-1b0d1098fda0.png)
