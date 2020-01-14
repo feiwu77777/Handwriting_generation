@@ -2,7 +2,7 @@
 
 An implementation of Alex Graves paper on handwriting generation https://arxiv.org/pdf/1308.0850.pdf.
 
-A first version was written using tensorflow (version 1.11.0) followed by a keras version (2.2.4), keras being more computational costly though.
+A first version was written using tensorflow (version 1.11.0) followed by pytorch (version 1.3.1).
 
 Both codes are structures as follow: 
 - part 1 : preparing the data to feed the neural network
